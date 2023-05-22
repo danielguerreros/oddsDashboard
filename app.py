@@ -15,7 +15,7 @@ st.set_page_config(
 # Dashboard title
 st.title("Bets Report ⚽️")
 
-st.sidebar.title("Paramaters")
+st.sidebar.title("Parameters")
 
 bankroll = st.sidebar.number_input("Enter your Bankroll",value=570)
 
@@ -49,6 +49,12 @@ if len(markets)!=0:
     df = df[df['Market'].isin(markets)]
 min_ev = st.sidebar.number_input("Select the minium EV",min_value=0.0,value=0.03)
 df = df[df.EV>=min_ev]
+
+st.sidebar.markdown('''
+    Created by [Daniel Guerrero](https://twitter.com/danielguerrer0s)
+
+    Visit [My Blog](https://medium.com/@danielguerrerosantaren)
+''')
 df["Date"] = pd.to_datetime(df["Date"],format='%Y-%m-%d')
 df["Time"] = df["Time"].astype(str)
 new_bets = df[df['Outcome'].isna()].sort_values('Date',ascending=False).reset_index(drop=True).round(3)
@@ -112,15 +118,11 @@ kpi1,kpi2,kpi3,kpi4,kpi5 = st.columns(5)
 
 kpi1.metric(label="ROI last 7 days", value=roi_last_30_days, delta= np.round(delta_roi,2))
 kpi2.metric(label="ROI historically", value=roi)
-kpi3.metric(label="ROI historically (Pinnacle)", value=roi_pinnacle)
-kpi4.metric(label="Total bets", value = total_bets)
-kpi5.metric(label="Corrects bets %", value=round((win_bets/total_bets)*100,2))
+kpi3.metric(label="Total bets", value = total_bets)
+kpi4.metric(label="Corrects bets %", value=round((win_bets/total_bets)*100,2))
+kpi5.metric(label="Cummulative Profit",value=round(data['Profit'].sum(),2))
 
-kpi6,kpi7,kpi8,kpi9,kpi10 = st.columns(5)
 
-kpi6.metric(label="Cummulative Profit",value=round(data['Profit'].sum(),2))
-kpi7.metric(label="Cummulative Profit (Pin)",value=round(data['Pinnacle Profit'].sum(),2))
-kpi8.metric(label="Avg Bets per Day",value = round(len(df)/df['Date'].nunique(),2))
 fig,ax =plt.subplots(figsize=(5,2)) 
 
 
@@ -148,18 +150,18 @@ with c1:
 with c2:
     st.markdown("### Data per day")
     data = data.sort_values("Date",ascending=False).set_index("Date").head(7)
-    st.dataframe(data[['Bankroll','Stake','Payout','Profit','ROI','Pinnacle Payout','Pinnacle Profit','ROI Pinnacle']].round(2))
+    st.dataframe(data[['Bankroll','Payout','Profit','ROI']].rename(columns={"Bankroll":"Stake"}).round(2))
 
 
 st.markdown("### New bets")
 new_bets['Date'] = pd.to_datetime(new_bets['Date'].astype(str)+" "+new_bets['Time']).dt.strftime('%Y-%m-%d %H:%M')
-st.dataframe(new_bets[['Date','Tournament','Match','Bet','Bookie','Odd','Stake','Bankroll','Pinacle','EV']].set_index("Date"))
+st.dataframe(new_bets[['Date','Tournament','Match','Bet','Bookie','Odd','Bankroll','EV']].rename(columns={"Bankroll":"Stake"}).set_index("Date"))
 
 st.markdown("### All bets")
 df['Date'] = pd.to_datetime(df['Date'].astype(str)+" "+df['Time']).dt.strftime('%Y-%m-%d %H:%M')
-st.dataframe(df.drop(columns="Time").sort_values("Date",ascending=False).set_index("Date"))
+st.dataframe(df[["Date","Tournament","Match","Bookie","Odd","Bankroll","Bet","Outcome","Payout","EV"]].rename(columns={"Bankroll":"Stake"}).sort_values("Date",ascending=False).set_index("Date"))
 
-st.markdown("## Statistics per Tournament")
+
 
 c3,c4 = st.columns(2)
 df['Correct'] = (df['Payout']>0).astype(int)
@@ -173,10 +175,15 @@ df_tournament = df.groupby('Tournament').agg(
     Payout = ('Payout',np.sum)
 ).sort_values('Total',ascending=False).round(2)
 with c3:
+    st.markdown("## Statistics per Tournament")
     st.dataframe(df_tournament[['Percentage','Correct','Total']])
 df_tournament['Profit'] = df_tournament['Payout'] - df_tournament['Bankroll']
 
 fig3,ax3 =plt.subplots(figsize=(5,2)) 
 df_tournament.sort_values('Profit',ascending=False)['Profit'].head(15).plot.bar(ax=ax3)
 with c4:
-    st.write(fig3)
+    st.markdown("## Statistics per Bookie")
+    per_Bookie=df.groupby("Bookie").sum()[['Bankroll','Payout']].rename(columns={"Bankroll":"Stake"})
+    per_Bookie["Profit"] = per_Bookie["Payout"] - per_Bookie["Stake"]
+    per_Bookie["ROI"] = 100*(per_Bookie["Profit"]/per_Bookie["Stake"])
+    st.dataframe(per_Bookie.sort_values("ROI",ascending=False).round(2))
